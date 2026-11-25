@@ -47,7 +47,12 @@ function aventureroActual(): ?array
  */
 function requiereLogin(): array
 {
-    return ['id' => 0, 'usuario' => 'invitado', 'nombre' => 'Invitado', 'clase' => '—']; // TODO
+    $aventurero = aventureroActual();
+    if ($aventurero === null) {
+        header('Location: login.php?motivo=privado');
+        exit;
+    }
+    return $aventurero;
 }
 
 /** Guarda un mensaje para mostrarlo UNA vez en la siguiente página. (Dado) */
@@ -70,7 +75,8 @@ function leerFlash(): ?string
  */
 function temaActual(): string
 {
-    return 'claro'; // TODO
+    $tema = $_COOKIE[COOKIE_TEMA] ?? '';
+    return in_array($tema, TEMAS, true) ? $tema : 'claro';
 }
 
 /**
@@ -79,19 +85,35 @@ function temaActual(): string
  */
 function guardarTema(string $tema): void
 {
-    // TODO
+    setcookie(COOKIE_TEMA, $tema, [
+        'expires'  => time() + (365 * 24 * 3600),
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 /** Guarda el NOMBRE DE USUARIO (nunca la contraseña) 30 días en COOKIE_USUARIO. */
 function recordarUsuario(string $usuario): void
 {
-    // TODO
+    setcookie(COOKIE_USUARIO, $usuario, [
+        'expires'  => time() + (30 * 24 * 3600),
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 /** Borra la cookie COOKIE_USUARIO (pista: caducidad en el pasado). */
 function olvidarUsuario(): void
 {
-    // TODO
+    setcookie(COOKIE_USUARIO, '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    unset($_COOKIE[COOKIE_USUARIO]);
 }
 
 /**
@@ -108,7 +130,20 @@ function olvidarUsuario(): void
  */
 function autenticar(PDO $pdo, string $usuario, string $clave): ?array
 {
-    return null; // TODO
+    $stmt = $pdo->prepare('SELECT id, usuario, nombre, clase, password_hash FROM aventureros WHERE usuario = :usuario LIMIT 1');
+    $stmt->execute([':usuario' => $usuario]);
+    $fila = $stmt->fetch();
+
+    if ($fila === false) {
+        return null;
+    }
+
+    if (!password_verify($clave, $fila['password_hash'])) {
+        return null;
+    }
+
+    unset($fila['password_hash']);
+    return $fila;
 }
 
 /**
@@ -117,5 +152,20 @@ function autenticar(PDO $pdo, string $usuario, string $clave): ?array
  */
 function cerrarSesion(): void
 {
-    // TODO
+    $_SESSION = [];
+
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            '',
+            time() - 42000,
+            $params['path'],
+            $params['domain'],
+            $params['secure'],
+            $params['httponly']
+        );
+    }
+
+    session_destroy();
 }

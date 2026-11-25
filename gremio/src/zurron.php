@@ -17,9 +17,15 @@ $misiones   = require __DIR__ . '/inc/datos_misiones.php';
 $_SESSION['zurron'] ??= [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // TODO: abandonar la misión $_POST['id'] del zurrón.
-    //  Pista: array_search(..., true), unset y array_values para reindexar.
-    //  Mensaje flash y redirección a zurron.php.
+    $idABorrar = trim($_POST['id'] ?? '');
+    $pos = array_search($idABorrar, $_SESSION['zurron'], true);
+    if ($pos !== false) {
+        unset($_SESSION['zurron'][$pos]);
+        $_SESSION['zurron'] = array_values($_SESSION['zurron']);
+        mensajeFlash('Has abandonado la misión.');
+    }
+    header('Location: zurron.php');
+    exit;
 }
 
 $ids   = $_SESSION['zurron'];
@@ -32,12 +38,43 @@ require __DIR__ . '/inc/cabecera.php';
 <h1>Mi zurrón</h1>
 <?php if ($flash !== null): ?><p class="aviso"><?= e($flash) ?></p><?php endif; ?>
 
-<?php
-/*
- * TODO: si el zurrón está vacío, enlace al tablón.
- * Si no, una <table> con: Misión · Rango · Recompensa · botón "Abandonar"
- * (formulario POST con el id oculto) y una fila final con la recompensa total.
- */
-?>
+<?php if (empty($ids)): ?>
+    <p>Tu zurrón está vacío. Visita el <a href="tablon.php">tablón de misiones</a> para aceptar encargos.</p>
+<?php else: ?>
+    <table>
+        <thead>
+            <tr>
+                <th>Misión</th>
+                <th>Rango</th>
+                <th>Recompensa</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($ids as $id): ?>
+                <?php $m = buscarMision($misiones, $id); ?>
+                <?php if ($m !== null): ?>
+                    <tr>
+                        <td><strong><?= e($m['titulo']) ?></strong><br><small class="nota"><?= e($m['zona']) ?></small></td>
+                        <td><span class="rango"><?= e($m['rango']) ?> · <?= e(etiquetaRango($m['rango'])) ?></span></td>
+                        <td class="oro"><?= e(formatearOro($m['recompensa'])) ?></td>
+                        <td>
+                            <form method="post" action="zurron.php">
+                                <input type="hidden" name="id" value="<?= e($m['id']) ?>">
+                                <button type="submit" class="secundario">Abandonar</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">Recompensa total</th>
+                <th colspan="2" class="oro"><?= e(formatearOro($total)) ?></th>
+            </tr>
+        </tfoot>
+    </table>
+<?php endif; ?>
 <p class="nota">El zurrón vive en la sesión: si sales del gremio, se vacía.</p>
 <?php require __DIR__ . '/inc/pie.php'; ?>

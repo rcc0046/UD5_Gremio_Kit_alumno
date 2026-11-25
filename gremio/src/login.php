@@ -20,23 +20,46 @@ if (aventureroActual() !== null) {
 }
 
 $error    = null;
-$usuario  = '';     // TODO: recupéralo de la cookie COOKIE_USUARIO si existe
-$recordar = false;  // TODO: marcado si había usuario recordado
+$usuario  = $_COOKIE[COOKIE_USUARIO] ?? '';
+$recordar = ($usuario !== '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // TODO (Parte 3):
-    //  1. Lee usuario (con trim), clave y la casilla "recordar".
-    //  2. Si falta alguno → $error = 'Escribe tu usuario y tu contraseña.'
-    //  3. Llama a autenticar(conectar(), $usuario, $clave) dentro de try/catch
-    //     (PDOException): el detalle técnico a error_log(), al usuario un
-    //     mensaje genérico. NUNCA muestres $ex->getMessage() en pantalla.
-    //  4. Si es correcto:
-    //       session_regenerate_id(true);       ← ¿por qué? (a la memoria)
-    //       guarda el aventurero en $_SESSION['aventurero'],
-    //       inicializa $_SESSION['zurron'] y guarda la hora en $_SESSION['entrada'],
-    //       recordarUsuario() u olvidarUsuario() según la casilla,
-    //       mensajeFlash de bienvenida y redirige a tablon.php.
-    //  5. Si no → $error = 'Usuario o contraseña incorrectos.'
+    $usuarioInput = trim($_POST['usuario'] ?? '');
+    $claveInput   = $_POST['clave'] ?? '';
+    $recordar     = isset($_POST['recordar']);
+    $usuario      = $usuarioInput;
+
+    if ($usuarioInput === '' || $claveInput === '') {
+        $error = 'Escribe tu usuario y tu contraseña.';
+    } else {
+        try {
+            $pdo = conectar();
+            $aventurero = autenticar($pdo, $usuarioInput, $claveInput);
+
+            if ($aventurero !== null) {
+                session_regenerate_id(true);
+                $_SESSION['aventurero'] = $aventurero;
+                $_SESSION['zurron']     = [];
+                $_SESSION['entrada']    = date('H:i:s');
+                $_SESSION['visitas']    = 0;
+
+                if ($recordar) {
+                    recordarUsuario($usuarioInput);
+                } else {
+                    olvidarUsuario();
+                }
+
+                mensajeFlash('¡Bienvenido, ' . $aventurero['nombre'] . '!');
+                header('Location: tablon.php');
+                exit;
+            }
+
+            $error = 'Usuario o contraseña incorrectos.';
+        } catch (PDOException $ex) {
+            error_log('Error en login (PDOException): ' . $ex->getMessage());
+            $error = 'No se ha podido conectar con el gremio. Inténtalo de nuevo más tarde.';
+        }
+    }
 }
 
 $motivo = match ($_GET['motivo'] ?? '') {
